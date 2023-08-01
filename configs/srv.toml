@@ -1,0 +1,45 @@
+[General]
+AppName = "ginadmin"
+DebugMode = true
+PprofAddr = "localhost:6060"
+DisableSwagger = false
+DisablePrintConfig = false
+
+[General.HTTP]
+Addr = ":8040"
+ReadTimeout = 60
+WriteTimeout = 60
+IdleTimeout = 10
+ShutdownTimeout = 10
+CertFile = ""
+KeyFile = ""
+
+[General.Root]
+ID = "root"
+Username = "admin"
+Password = "6351623c8cef86fefabfa7da046fc619" # abc-123
+Name = "Admin"
+
+[Storage]
+
+[Storage.Cache]
+Type = "badger"
+Delimiter = ":"
+
+[Storage.Cache.Memory]
+CleanupInterval = 60
+
+[Storage.Cache.Badger]
+Path = "data/cache"
+
+[Storage.DB]
+Debug = true
+Type = "sqlite3"
+DSN = "data/sqlite/ginadmin.db"
+MaxLifetime = 86400
+MaxIdleTime = 3600
+MaxOpenConns = 100
+MaxIdleConns = 50
+TablePrefix = ""
+AutoMigrate = true
+

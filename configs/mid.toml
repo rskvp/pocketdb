@@ -1,0 +1,54 @@
+[Middleware]
+
+[Middleware.Recovery]
+Skip = 3
+
+[Middleware.Trace]
+RequestHeaderKey = "X-Request-Id"
+ResponseTraceKey = "X-Trace-Id"
+
+[Middleware.Logger]
+MaxOutputRequestBodyLen = 4096  # bytes
+MaxOutputResponseBodyLen = 1024 # bytes
+
+[Middleware.TokenAuth]
+Enable = true
+
+[Middleware.CopyBody]
+MaxContentLen = 134217728 # 128MB
+
+[Middleware.CORS]
+Enable = false
+AllowOrigins = ["*"]
+AllowMethods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+AllowHeaders = ["*"]
+MaxAge = 86400
+AllowWildcard = true
+AllowWebSockets = true
+AllowFiles = true
+
+[Middleware.Auth]
+Disable = true
+SkippedPathPrefixes = ["/api/v1/captcha/", "/api/v1/login"]
+
+[Middleware.Auth.Store]
+Type = "badger"
+
+[Middleware.RateLimiter]
+Enable = false
+MaxRequestsPerIP = 30
+MaxRequestsPerUser = 30
+
+[Middleware.RateLimiter.Store]
+Type = "memory" # memory
+
+[Middleware.RateLimiter.Store.Memory]
+Expiration = 3600
+CleanupInterval = 60
+
+[Middleware.Casbin]
+Disable = true
+SkippedPathPrefixes = ["/api/v1/captcha/", "/api/v1/login", "/api/v1/current/"]
+
+[Middleware.Static]
+SkippedPathPrefixes = ["/api"]

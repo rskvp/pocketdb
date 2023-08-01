@@ -30,7 +30,7 @@ func (a *Role) Query(ctx context.Context, params sch.RoleQueryParam) (*sch.RoleQ
 	params.Pagination = false
 
 	result, err := a.RoleDAL.Query(ctx, params, sch.RoleQueryOptions{
-		QueryOptions: util.QueryOptions{
+		QueryOptions: util.QueryOptions {
 			OrderFields: []util.OrderByParam{
 				{Field: "sequence", Direction: util.DESC},
 				{Field: "created_at", Direction: util.DESC},

@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"done/services/auth/dal"
-	"done/services/auth/sch"
+	dl "done/services/auth/dal"
+	"done/services/menu/dal"
+	"done/services/menu/sch"
 
 	"done/util"
 
@@ -19,7 +20,7 @@ type Menu struct {
 	Trans           *util.Trans
 	MenuDAL         *dal.Menu
 	MenuResourceDAL *dal.MenuResource
-	RoleMenuDAL     *dal.RoleMenu
+	RoleMenuDAL     *dl.RoleMenu
 }
 
 // Query menus from the data access object based on the provided parameters and options.

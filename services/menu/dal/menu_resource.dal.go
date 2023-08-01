@@ -3,7 +3,7 @@ package dal
 import (
 	"context"
 
-	"done/services/auth/sch"
+	"done/services/menu/sch"
 
 	"done/tools/errors"
 	"done/util"

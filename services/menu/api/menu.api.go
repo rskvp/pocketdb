@@ -1,8 +1,8 @@
 package api
 
 import (
-	"done/services/auth/biz"
-	"done/services/auth/sch"
+	"done/services/menu/biz"
+	"done/services/menu/sch"
 
 	"done/util"
 

@@ -3,8 +3,8 @@ package dal
 import (
 	"context"
 
-	"done/services/auth/sch"
-
+	dl "done/services/auth/dal"
+	"done/services/menu/sch"
 	"done/tools/errors"
 	"done/util"
 
@@ -46,12 +46,12 @@ func (a *Menu) Query(ctx context.Context, params sch.MenuQueryParam, opts ...sch
 		db = db.Where("parent_path LIKE ?", v+"%")
 	}
 	if v := params.UserID; len(v) > 0 {
-		userRoleQuery := GetUserRoleDB(ctx, a.DB).Where("user_id = ?", v).Select("role_id")
-		roleMenuQuery := GetRoleMenuDB(ctx, a.DB).Where("role_id IN (?)", userRoleQuery).Select("menu_id")
+		userRoleQuery := dl.GetUserRoleDB(ctx, a.DB).Where("user_id = ?", v).Select("role_id")
+		roleMenuQuery := dl.GetRoleMenuDB(ctx, a.DB).Where("role_id IN (?)", userRoleQuery).Select("menu_id")
 		db = db.Where("id IN (?)", roleMenuQuery)
 	}
 	if v := params.RoleID; len(v) > 0 {
-		roleMenuQuery := GetRoleMenuDB(ctx, a.DB).Where("role_id = ?", v).Select("menu_id")
+		roleMenuQuery := dl.GetRoleMenuDB(ctx, a.DB).Where("role_id = ?", v).Select("menu_id")
 		db = db.Where("id IN (?)", roleMenuQuery)
 	}
 

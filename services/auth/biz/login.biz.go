@@ -5,6 +5,9 @@ import (
 	"sort"
 	"time"
 
+	dl "done/services/menu/dal"
+	sc "done/services/menu/sch"
+	
 	"done/services/auth/dal"
 	"done/services/auth/sch"
 	"done/tools/cachex"
@@ -25,7 +28,7 @@ type Login struct {
 	Auth        jwtx.Auther
 	UserDAL     *dal.User
 	UserRoleDAL *dal.UserRole
-	MenuDAL     *dal.Menu
+	MenuDAL     *dl.Menu
 	UserBIZ     *User
 }
 
@@ -271,18 +274,18 @@ func (a *Login) UpdatePassword(ctx context.Context, updateItem *sch.UpdateLoginP
 }
 
 // Query menus based on user permissions
-func (a *Login) QueryMenus(ctx context.Context) (sch.Menus, error) {
-	menuQueryParams := sch.MenuQueryParam{
-		Status: sch.MenuStatusEnabled,
+func (a *Login) QueryMenus(ctx context.Context) (sc.Menus, error) {
+	menuQueryParams := sc.MenuQueryParam{
+		Status: sc.MenuStatusEnabled,
 	}
 
 	isRoot := util.FromIsRootUser(ctx)
 	if !isRoot {
 		menuQueryParams.UserID = util.FromUserID(ctx)
 	}
-	menuResult, err := a.MenuDAL.Query(ctx, menuQueryParams, sch.MenuQueryOptions{
+	menuResult, err := a.MenuDAL.Query(ctx, menuQueryParams, sc.MenuQueryOptions{
 		QueryOptions: util.QueryOptions{
-			OrderFields: sch.MenusOrderParams,
+			OrderFields: sc.MenusOrderParams,
 		},
 	})
 	if err != nil {
@@ -301,7 +304,7 @@ func (a *Login) QueryMenus(ctx context.Context) (sch.Menus, error) {
 			}
 		}
 		if len(missMenusIDs) > 0 {
-			parentResult, err := a.MenuDAL.Query(ctx, sch.MenuQueryParam{
+			parentResult, err := a.MenuDAL.Query(ctx, sc.MenuQueryParam{
 				InIDs: missMenusIDs,
 			})
 			if err != nil {

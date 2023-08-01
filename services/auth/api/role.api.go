@@ -9,32 +9,31 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// User management for RBAC
-type User struct {
-	UserBIZ *biz.User
+// Role management for RBAC
+type Role struct {
+	RoleBIZ *biz.Role
 }
 
-// @Tags UserAPI
+// @Tags RoleAPI
 // @Security ApiKeyAuth
-// @Summary Query user list
+// @Summary Query role list
 // @Param current query int true "pagination index" default(1)
 // @Param pageSize query int true "pagination size" default(10)
-// @Param username query string false "Username for login"
-// @Param name query string false "Name of user"
-// @Param status query string false "Status of user (activated, freezed)"
-// @Success 200 {object} util.ResponseResult{data=[]sch.User}
+// @Param name query string false "Display name of role"
+// @Param status query string false "Status of role (disabled, enabled)"
+// @Success 200 {object} util.ResponseResult{data=[]sch.Role}
 // @Failure 401 {object} util.ResponseResult
 // @Failure 500 {object} util.ResponseResult
-// @Router /api/v1/users [get]
-func (a *User) Query(c *gin.Context) {
+// @Router /api/v1/roles [get]
+func (a *Role) Query(c *gin.Context) {
 	ctx := c.Request.Context()
-	var params sch.UserQueryParam
+	var params sch.RoleQueryParam
 	if err := util.ParseQuery(c, &params); err != nil {
 		util.ResError(c, err)
 		return
 	}
 
-	result, err := a.UserBIZ.Query(ctx, params)
+	result, err := a.RoleBIZ.Query(ctx, params)
 	if err != nil {
 		util.ResError(c, err)
 		return
@@ -42,17 +41,17 @@ func (a *User) Query(c *gin.Context) {
 	util.ResPage(c, result.Data, result.PageResult)
 }
 
-// @Tags UserAPI
+// @Tags RoleAPI
 // @Security ApiKeyAuth
-// @Summary Get user record by ID
+// @Summary Get role record by ID
 // @Param id path string true "unique id"
-// @Success 200 {object} util.ResponseResult{data=sch.User}
+// @Success 200 {object} util.ResponseResult{data=sch.Role}
 // @Failure 401 {object} util.ResponseResult
 // @Failure 500 {object} util.ResponseResult
-// @Router /api/v1/users/{id} [get]
-func (a *User) Get(c *gin.Context) {
+// @Router /api/v1/roles/{id} [get]
+func (a *Role) Get(c *gin.Context) {
 	ctx := c.Request.Context()
-	item, err := a.UserBIZ.Get(ctx, c.Param("id"))
+	item, err := a.RoleBIZ.Get(ctx, c.Param("id"))
 	if err != nil {
 		util.ResError(c, err)
 		return
@@ -60,18 +59,18 @@ func (a *User) Get(c *gin.Context) {
 	util.ResSuccess(c, item)
 }
 
-// @Tags UserAPI
+// @Tags RoleAPI
 // @Security ApiKeyAuth
-// @Summary Create user record
-// @Param body body sch.UserForm true "Request body"
-// @Success 200 {object} util.ResponseResult{data=sch.User}
+// @Summary Create role record
+// @Param body body sch.RoleForm true "Request body"
+// @Success 200 {object} util.ResponseResult{data=sch.Role}
 // @Failure 400 {object} util.ResponseResult
 // @Failure 401 {object} util.ResponseResult
 // @Failure 500 {object} util.ResponseResult
-// @Router /api/v1/users [post]
-func (a *User) Create(c *gin.Context) {
+// @Router /api/v1/roles [post]
+func (a *Role) Create(c *gin.Context) {
 	ctx := c.Request.Context()
-	item := new(sch.UserForm)
+	item := new(sch.RoleForm)
 	if err := util.ParseJSON(c, item); err != nil {
 		util.ResError(c, err)
 		return
@@ -80,7 +79,7 @@ func (a *User) Create(c *gin.Context) {
 		return
 	}
 
-	result, err := a.UserBIZ.Create(ctx, item)
+	result, err := a.RoleBIZ.Create(ctx, item)
 	if err != nil {
 		util.ResError(c, err)
 		return
@@ -88,19 +87,19 @@ func (a *User) Create(c *gin.Context) {
 	util.ResSuccess(c, result)
 }
 
-// @Tags UserAPI
+// @Tags RoleAPI
 // @Security ApiKeyAuth
-// @Summary Update user record by ID
+// @Summary Update role record by ID
 // @Param id path string true "unique id"
-// @Param body body sch.UserForm true "Request body"
+// @Param body body sch.RoleForm true "Request body"
 // @Success 200 {object} util.ResponseResult
 // @Failure 400 {object} util.ResponseResult
 // @Failure 401 {object} util.ResponseResult
 // @Failure 500 {object} util.ResponseResult
-// @Router /api/v1/users/{id} [put]
-func (a *User) Update(c *gin.Context) {
+// @Router /api/v1/roles/{id} [put]
+func (a *Role) Update(c *gin.Context) {
 	ctx := c.Request.Context()
-	item := new(sch.UserForm)
+	item := new(sch.RoleForm)
 	if err := util.ParseJSON(c, item); err != nil {
 		util.ResError(c, err)
 		return
@@ -109,7 +108,7 @@ func (a *User) Update(c *gin.Context) {
 		return
 	}
 
-	err := a.UserBIZ.Update(ctx, c.Param("id"), item)
+	err := a.RoleBIZ.Update(ctx, c.Param("id"), item)
 	if err != nil {
 		util.ResError(c, err)
 		return
@@ -117,35 +116,17 @@ func (a *User) Update(c *gin.Context) {
 	util.ResOK(c)
 }
 
-// @Tags UserAPI
+// @Tags RoleAPI
 // @Security ApiKeyAuth
-// @Summary Delete user record by ID
+// @Summary Delete role record by ID
 // @Param id path string true "unique id"
 // @Success 200 {object} util.ResponseResult
 // @Failure 401 {object} util.ResponseResult
 // @Failure 500 {object} util.ResponseResult
-// @Router /api/v1/users/{id} [delete]
-func (a *User) Delete(c *gin.Context) {
+// @Router /api/v1/roles/{id} [delete]
+func (a *Role) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
-	err := a.UserBIZ.Delete(ctx, c.Param("id"))
-	if err != nil {
-		util.ResError(c, err)
-		return
-	}
-	util.ResOK(c)
-}
-
-// @Tags UserAPI
-// @Security ApiKeyAuth
-// @Summary Reset user password by ID
-// @Param id path string true "unique id"
-// @Success 200 {object} util.ResponseResult
-// @Failure 401 {object} util.ResponseResult
-// @Failure 500 {object} util.ResponseResult
-// @Router /api/v1/users/{id}/reset-pwd [patch]
-func (a *User) ResetPassword(c *gin.Context) {
-	ctx := c.Request.Context()
-	err := a.UserBIZ.ResetPassword(ctx, c.Param("id"))
+	err := a.RoleBIZ.Delete(ctx, c.Param("id"))
 	if err != nil {
 		util.ResError(c, err)
 		return

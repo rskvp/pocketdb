@@ -18,7 +18,7 @@ MaxThread = 4
 
 [Logger.Hooks.Options]
 Debug = "true"
-DBType = "sqlite3" # sqlite3/mysql/postgres
+DBType = "sqlite3"
 DSN = "data/sqlite/ginadmin.db"
 MaxOpenConns = "16"
 MaxIdleConns = "8"

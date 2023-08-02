@@ -10,13 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"done/services/datastorage/core"
+
+	"done/tools/migrate"
+
 	"github.com/fatih/color"
-	"github.com/labstack/echo/v5/middleware"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/migrations"
-	"github.com/pocketbase/pocketbase/migrations/logs"
-	"github.com/pocketbase/pocketbase/tools/migrate"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -42,11 +41,6 @@ func Serve(app core.App, config ServeConfig) (*http.Server, error) {
 		config.AllowedOrigins = []string{"*"}
 	}
 
-	// ensure that the latest migrations are applied before starting the server
-	if err := runMigrations(app); err != nil {
-		return nil, err
-	}
-
 	// reload app settings in case a new default value was set with a migration
 	// (or if this is the first time the init migration was executed)
 	if err := app.RefreshSettings(); err != nil {
@@ -60,13 +54,6 @@ func Serve(app core.App, config ServeConfig) (*http.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// configure cors
-	router.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		Skipper:      middleware.DefaultSkipper,
-		AllowOrigins: config.AllowedOrigins,
-		AllowMethods: []string{http.MethodGet, http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodPost, http.MethodDelete},
-	}))
 
 	// start http server
 	// ---
@@ -151,30 +138,4 @@ func Serve(app core.App, config ServeConfig) (*http.Server, error) {
 type migrationsConnection struct {
 	DB             *dbx.DB
 	MigrationsList migrate.MigrationsList
-}
-
-func runMigrations(app core.App) error {
-	connections := []migrationsConnection{
-		{
-			DB:             app.DB(),
-			MigrationsList: migrations.AppMigrations,
-		},
-		{
-			DB:             app.LogsDB(),
-			MigrationsList: logs.LogsMigrations,
-		},
-	}
-
-	for _, c := range connections {
-		runner, err := migrate.NewRunner(c.DB, c.MigrationsList)
-		if err != nil {
-			return err
-		}
-
-		if _, err := runner.Up(); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

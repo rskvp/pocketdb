@@ -1,8 +1,10 @@
 // Package models implements all PocketBase DB models and DTOs.
 package models
 
-//"github.com/pocketbase/pocketbase/tools/types"
-//"github.com/pocketbase/pocketbase/tools/types"
+import (
+	"done/tools/security"
+	"done/tools/types"
+)
 
 const (
 	// DefaultIdLength is the default length of the generated model id.
@@ -33,8 +35,8 @@ type Model interface {
 	HasId() bool
 	GetId() string
 	SetId(id string)
-	GetCreated() int64
-	GetUpdated() int64
+	GetCreated() types.DateTime
+	GetUpdated() types.DateTime
 	RefreshId()
 	RefreshCreated()
 	RefreshUpdated()
@@ -48,24 +50,24 @@ type Model interface {
 type BaseModel struct {
 	isNotNew bool
 
-	ID      uint  `gorm:"primaryKey"`
-	Created int64 `gorm:"autoCreateTime"`
-	Updated int64 `gorm:"autoUpdateTime"`
+	Id      string         `db:"id" json:"id"`
+	Created types.DateTime `db:"created" json:"created"`
+	Updated types.DateTime `db:"updated" json:"updated"`
 }
 
 // HasId returns whether the model has a nonzero id.
 func (m *BaseModel) HasId() bool {
-	return true
+	return m.GetId() != ""
 }
 
 // GetId returns the model id.
-func (m *BaseModel) GetId() uint {
-	return m.ID
+func (m *BaseModel) GetId() string {
+	return m.Id
 }
 
 // SetId sets the model id to the provided string value.
-func (m *BaseModel) SetId(id uint) {
-	m.ID = id
+func (m *BaseModel) SetId(id string) {
+	m.Id = id
 }
 
 // MarkAsNew marks the model as "new" (aka. enforces m.IsNew() to be true).
@@ -85,13 +87,30 @@ func (m *BaseModel) IsNew() bool {
 }
 
 // GetCreated returns the model Created datetime.
-func (m *BaseModel) GetCreated() int64 {
+func (m *BaseModel) GetCreated() types.DateTime {
 	return m.Created
 }
 
 // GetUpdated returns the model Updated datetime.
-func (m *BaseModel) GetUpdated() int64 {
+func (m *BaseModel) GetUpdated() types.DateTime {
 	return m.Updated
+}
+
+// RefreshId generates and sets a new model id.
+//
+// The generated id is a cryptographically random 15 characters length string.
+func (m *BaseModel) RefreshId() {
+	m.Id = security.RandomStringWithAlphabet(DefaultIdLength, DefaultIdAlphabet)
+}
+
+// RefreshCreated updates the model Created field with the current datetime.
+func (m *BaseModel) RefreshCreated() {
+	m.Created = types.NowDateTime()
+}
+
+// RefreshUpdated updates the model Updated field with the current datetime.
+func (m *BaseModel) RefreshUpdated() {
+	m.Updated = types.NowDateTime()
 }
 
 // PostScan implements the [dbx.PostScanner] interface.

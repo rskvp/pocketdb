@@ -9,18 +9,19 @@ import (
 	"regexp"
 	"strings"
 
+	"done/services/datastorage/core"
+	"done/services/datastorage/daos"
+	"done/services/datastorage/forms/validators"
+	"done/services/datastorage/models"
+	"done/services/datastorage/models/schema"
+	"done/tools/filesystem"
+	"done/tools/list"
+	"done/tools/rest"
+	"done/tools/security"
+
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/daos"
-	"github.com/pocketbase/pocketbase/forms/validators"
-	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/models/schema"
-	"github.com/pocketbase/pocketbase/tools/filesystem"
-	"github.com/pocketbase/pocketbase/tools/list"
-	"github.com/pocketbase/pocketbase/tools/rest"
-	"github.com/pocketbase/pocketbase/tools/security"
 	"github.com/spf13/cast"
 )
 
@@ -482,10 +483,7 @@ func (form *RecordUpsert) Validate() error {
 			),
 			validation.Field(
 				&form.Email,
-				validation.When(
-					form.record.Collection().AuthOptions().RequireEmail,
-					validation.Required,
-				),
+
 				// don't allow direct email change (or unset) if the form doesn't have manage access permissions
 				// (aka. allow only admin or authorized auth models to directly update the field)
 				validation.When(
@@ -494,7 +492,6 @@ func (form *RecordUpsert) Validate() error {
 				),
 				validation.Length(1, 255),
 				is.EmailFormat,
-				validation.By(form.checkEmailDomain),
 				validation.By(form.checkUniqueEmail),
 			),
 			validation.Field(
@@ -512,7 +509,6 @@ func (form *RecordUpsert) Validate() error {
 					(form.record.IsNew() || form.PasswordConfirm != "" || form.OldPassword != ""),
 					validation.Required,
 				),
-				validation.Length(form.record.Collection().AuthOptions().MinPasswordLength, 72),
 			),
 			validation.Field(
 				&form.PasswordConfirm,
@@ -581,29 +577,6 @@ func (form *RecordUpsert) checkUniqueEmail(value any) error {
 	)
 	if !isUnique {
 		return validation.NewError("validation_invalid_email", "The email is invalid or already in use.")
-	}
-
-	return nil
-}
-
-func (form *RecordUpsert) checkEmailDomain(value any) error {
-	val, _ := value.(string)
-	if val == "" {
-		return nil // nothing to check
-	}
-
-	domain := val[strings.LastIndex(val, "@")+1:]
-	only := form.record.Collection().AuthOptions().OnlyEmailDomains
-	except := form.record.Collection().AuthOptions().ExceptEmailDomains
-
-	// only domains check
-	if len(only) > 0 && !list.ExistInSlice(domain, only) {
-		return validation.NewError("validation_email_domain_not_allowed", "Email domain is not allowed.")
-	}
-
-	// except domains check
-	if len(except) > 0 && list.ExistInSlice(domain, except) {
-		return validation.NewError("validation_email_domain_not_allowed", "Email domain is not allowed.")
 	}
 
 	return nil

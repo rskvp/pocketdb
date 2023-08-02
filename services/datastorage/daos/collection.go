@@ -1,16 +1,15 @@
 package daos
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
+	"done/tools/list"
+
+	"done/services/datastorage/models"
+	"done/services/datastorage/models/schema"
+
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/models/schema"
-	"github.com/pocketbase/pocketbase/tools/list"
 )
 
 // CollectionQuery returns a new Collection select query.
@@ -140,19 +139,9 @@ func (dao *Dao) DeleteCollection(collection *models.Collection) error {
 
 	return dao.RunInTransaction(func(txDao *Dao) error {
 		// delete the related view or records table
-		if collection.IsView() {
-			if err := txDao.DeleteView(collection.Name); err != nil {
-				return err
-			}
-		} else {
-			if err := txDao.DeleteTable(collection.Name); err != nil {
-				return err
-			}
-		}
 
-		// trigger views resave to check for dependencies
-		if err := txDao.resaveViewsWithChangedSchema(collection.Id); err != nil {
-			return fmt.Errorf("The collection has a view dependency - %w", err)
+		if err := txDao.DeleteTable(collection.Name); err != nil {
+			return err
 		}
 
 		return txDao.Delete(collection)
@@ -183,21 +172,14 @@ func (dao *Dao) SaveCollection(collection *models.Collection) error {
 			collection.Type = models.CollectionTypeBase
 		}
 
-		switch collection.Type {
-		case models.CollectionTypeView:
-			if err := txDao.saveViewCollection(collection, oldCollection); err != nil {
-				return err
-			}
-		default:
-			// persist the collection model
-			if err := txDao.Save(collection); err != nil {
-				return err
-			}
+		// persist the collection model
+		if err := txDao.Save(collection); err != nil {
+			return err
+		}
 
-			// sync the changes with the related records table
-			if err := txDao.SyncRecordTableSchema(collection, oldCollection); err != nil {
-				return err
-			}
+		// sync the changes with the related records table
+		if err := txDao.SyncRecordTableSchema(collection, oldCollection); err != nil {
+			return err
 		}
 
 		return nil
@@ -207,240 +189,5 @@ func (dao *Dao) SaveCollection(collection *models.Collection) error {
 		return txErr
 	}
 
-	// trigger an update for all views with changed schema as a result of the current collection save
-	// (ignoring view errors to allow users to update the query from the UI)
-	dao.resaveViewsWithChangedSchema(collection.Id)
-
 	return nil
-}
-
-// ImportCollections imports the provided collections list within a single transaction.
-//
-// NB1! If deleteMissing is set, all local collections and schema fields, that are not present
-// in the imported configuration, WILL BE DELETED (including their related records data).
-//
-// NB2! This method doesn't perform validations on the imported collections data!
-// If you need validations, use [forms.CollectionsImport].
-func (dao *Dao) ImportCollections(
-	importedCollections []*models.Collection,
-	deleteMissing bool,
-	afterSync func(txDao *Dao, mappedImported, mappedExisting map[string]*models.Collection) error,
-) error {
-	if len(importedCollections) == 0 {
-		return errors.New("No collections to import")
-	}
-
-	return dao.RunInTransaction(func(txDao *Dao) error {
-		existingCollections := []*models.Collection{}
-		if err := txDao.CollectionQuery().OrderBy("updated ASC").All(&existingCollections); err != nil {
-			return err
-		}
-		mappedExisting := make(map[string]*models.Collection, len(existingCollections))
-		for _, existing := range existingCollections {
-			mappedExisting[existing.GetId()] = existing
-		}
-
-		mappedImported := make(map[string]*models.Collection, len(importedCollections))
-		for _, imported := range importedCollections {
-			// generate id if not set
-			if !imported.HasId() {
-				imported.MarkAsNew()
-				imported.RefreshId()
-			}
-
-			// set default type if missing
-			if imported.Type == "" {
-				imported.Type = models.CollectionTypeBase
-			}
-
-			if existing, ok := mappedExisting[imported.GetId()]; ok {
-				imported.MarkAsNotNew()
-
-				// preserve original created date
-				if !existing.Created.IsZero() {
-					imported.Created = existing.Created
-				}
-
-				// extend existing schema
-				if !deleteMissing {
-					schema, _ := existing.Schema.Clone()
-					for _, f := range imported.Schema.Fields() {
-						schema.AddField(f) // add or replace
-					}
-					imported.Schema = *schema
-				}
-			} else {
-				imported.MarkAsNew()
-			}
-
-			mappedImported[imported.GetId()] = imported
-		}
-
-		// delete old collections not available in the new configuration
-		// (before saving the imports in case a deleted collection name is being reused)
-		if deleteMissing {
-			for _, existing := range existingCollections {
-				if mappedImported[existing.GetId()] != nil {
-					continue // exist
-				}
-
-				if existing.System {
-					return fmt.Errorf("System collection %q cannot be deleted.", existing.Name)
-				}
-
-				// delete the related records table or view
-				if existing.IsView() {
-					if err := txDao.DeleteView(existing.Name); err != nil {
-						return err
-					}
-				} else {
-					if err := txDao.DeleteTable(existing.Name); err != nil {
-						return err
-					}
-				}
-
-				// delete the collection
-				if err := txDao.Delete(existing); err != nil {
-					return err
-				}
-			}
-		}
-
-		// upsert imported collections
-		for _, imported := range importedCollections {
-			if err := txDao.Save(imported); err != nil {
-				return err
-			}
-		}
-
-		// sync record tables
-		for _, imported := range importedCollections {
-			if imported.IsView() {
-				continue
-			}
-
-			existing := mappedExisting[imported.GetId()]
-
-			if err := txDao.SyncRecordTableSchema(imported, existing); err != nil {
-				return err
-			}
-		}
-
-		// sync views
-		for _, imported := range importedCollections {
-			if !imported.IsView() {
-				continue
-			}
-
-			existing := mappedExisting[imported.GetId()]
-
-			if err := txDao.saveViewCollection(imported, existing); err != nil {
-				return err
-			}
-		}
-
-		if afterSync != nil {
-			if err := afterSync(txDao, mappedImported, mappedExisting); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-}
-
-// saveViewCollection persists the provided View collection changes:
-//   - deletes the old related SQL view (if any)
-//   - creates a new SQL view with the latest newCollection.Options.Query
-//   - generates a new schema based on newCollection.Options.Query
-//   - updates newCollection.Schema based on the generated view table info and query
-//   - saves the newCollection
-//
-// This method returns an error if newCollection is not a "view".
-func (dao *Dao) saveViewCollection(newCollection, oldCollection *models.Collection) error {
-	if !newCollection.IsView() {
-		return errors.New("not a view collection")
-	}
-
-	return dao.RunInTransaction(func(txDao *Dao) error {
-		query := newCollection.ViewOptions().Query
-
-		// generate collection schema from the query
-		viewSchema, err := txDao.CreateViewSchema(query)
-		if err != nil {
-			return err
-		}
-
-		// delete old renamed view
-		if oldCollection != nil {
-			if err := txDao.DeleteView(oldCollection.Name); err != nil {
-				return err
-			}
-		}
-
-		// (re)create the view
-		if err := txDao.SaveView(newCollection.Name, query); err != nil {
-			return err
-		}
-
-		newCollection.Schema = viewSchema
-
-		return txDao.Save(newCollection)
-	})
-}
-
-// resaveViewsWithChangedSchema updates all view collections with changed schemas.
-func (dao *Dao) resaveViewsWithChangedSchema(excludeIds ...string) error {
-	collections, err := dao.FindCollectionsByType(models.CollectionTypeView)
-	if err != nil {
-		return err
-	}
-
-	return dao.RunInTransaction(func(txDao *Dao) error {
-		for _, collection := range collections {
-			if len(excludeIds) > 0 && list.ExistInSlice(collection.Id, excludeIds) {
-				continue
-			}
-
-			// clone the existing schema so that it is safe for temp modifications
-			oldSchema, err := collection.Schema.Clone()
-			if err != nil {
-				return err
-			}
-
-			// generate a new schema from the query
-			newSchema, err := txDao.CreateViewSchema(collection.ViewOptions().Query)
-			if err != nil {
-				return err
-			}
-
-			// unset the schema field ids to exclude from the comparison
-			for _, f := range oldSchema.Fields() {
-				f.Id = ""
-			}
-			for _, f := range newSchema.Fields() {
-				f.Id = ""
-			}
-
-			encodedNewSchema, err := json.Marshal(newSchema)
-			if err != nil {
-				return err
-			}
-
-			encodedOldSchema, err := json.Marshal(oldSchema)
-			if err != nil {
-				return err
-			}
-
-			if bytes.EqualFold(encodedNewSchema, encodedOldSchema) {
-				continue // no changes
-			}
-
-			if err := txDao.saveViewCollection(collection, nil); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
 }

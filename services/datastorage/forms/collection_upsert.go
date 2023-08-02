@@ -6,17 +6,18 @@ import (
 	"regexp"
 	"strconv"
 
+	"done/services/datastorage/core"
+	"done/services/datastorage/daos"
+	"done/services/datastorage/forms/validators"
+	"done/services/datastorage/models"
+	"done/services/datastorage/models/schema"
+	"done/services/datastorage/resolvers"
+	"done/tools/dbutils"
+	"done/tools/list"
+	"done/tools/search"
+	"done/tools/types"
+
 	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/daos"
-	"github.com/pocketbase/pocketbase/forms/validators"
-	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/models/schema"
-	"github.com/pocketbase/pocketbase/resolvers"
-	"github.com/pocketbase/pocketbase/tools/dbutils"
-	"github.com/pocketbase/pocketbase/tools/list"
-	"github.com/pocketbase/pocketbase/tools/search"
-	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 var collectionNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_]*$`)
@@ -92,13 +93,6 @@ func (form *CollectionUpsert) Validate() error {
 	isView := form.Type == models.CollectionTypeView
 
 	// generate schema from the query (overwriting any explicit user defined schema)
-	if isView {
-		options := models.CollectionViewOptions{}
-		if err := decodeOptions(form.Options, &options); err != nil {
-			return err
-		}
-		form.Schema, _ = form.dao.CreateViewSchema(options.Query)
-	}
 
 	return validation.ValidateStruct(form,
 		validation.Field(
@@ -159,7 +153,6 @@ func (form *CollectionUpsert) Validate() error {
 			validation.By(form.checkRule),
 		),
 		validation.Field(&form.Indexes, validation.By(form.checkIndexes)),
-		validation.Field(&form.Options, validation.By(form.checkOptions)),
 	)
 }
 
@@ -283,7 +276,7 @@ func (form *CollectionUpsert) checkRelationFields(value any) error {
 		}
 
 		// allow only views to have relations to other views
-		// (see https://github.com/pocketbase/pocketbase/issues/3000)
+		// (see https://done/services/datastorage/issues/3000)
 		if form.Type != models.CollectionTypeView && relCollection.IsView() {
 			return validation.Errors{fmt.Sprint(i): validation.Errors{
 				"options": validation.Errors{
@@ -431,50 +424,6 @@ func (form *CollectionUpsert) checkIndexes(value any) error {
 		// 		),
 		// 	}
 		// }
-	}
-
-	return nil
-}
-
-func (form *CollectionUpsert) checkOptions(value any) error {
-	v, _ := value.(types.JsonMap)
-
-	switch form.Type {
-	case models.CollectionTypeAuth:
-		options := models.CollectionAuthOptions{}
-		if err := decodeOptions(v, &options); err != nil {
-			return err
-		}
-
-		// check the generic validations
-		if err := options.Validate(); err != nil {
-			return err
-		}
-
-		// additional form specific validations
-		if err := form.checkRule(options.ManageRule); err != nil {
-			return validation.Errors{"manageRule": err}
-		}
-	case models.CollectionTypeView:
-		options := models.CollectionViewOptions{}
-		if err := decodeOptions(v, &options); err != nil {
-			return err
-		}
-
-		// check the generic validations
-		if err := options.Validate(); err != nil {
-			return err
-		}
-
-		// check the query option
-		if _, err := form.dao.CreateViewSchema(options.Query); err != nil {
-			return validation.Errors{
-				"query": validation.NewError(
-					"validation_invalid_view_query",
-					fmt.Sprintf("Invalid query - %s", err.Error()),
-				),
-			}
-		}
 	}
 
 	return nil

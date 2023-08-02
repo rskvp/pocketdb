@@ -5,13 +5,14 @@ import (
 	"strconv"
 	"strings"
 
+	"done/services/datastorage/models"
+	"done/services/datastorage/models/schema"
+	"done/tools/dbutils"
+	"done/tools/list"
+	"done/tools/security"
+
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/models/schema"
-	"github.com/pocketbase/pocketbase/tools/dbutils"
-	"github.com/pocketbase/pocketbase/tools/list"
-	"github.com/pocketbase/pocketbase/tools/security"
 )
 
 // SyncRecordTableSchema compares the two provided collections

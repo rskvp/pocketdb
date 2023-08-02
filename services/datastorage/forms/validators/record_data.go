@@ -6,15 +6,17 @@ import (
 	"regexp"
 	"strings"
 
+	"done/tools/filesystem"
+	"done/tools/list"
+	"done/tools/types"
+
+	"done/services/datastorage/daos"
+	"done/services/datastorage/models"
+	"done/services/datastorage/models/schema"
+
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/daos"
-	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/models/schema"
-	"github.com/pocketbase/pocketbase/tools/filesystem"
-	"github.com/pocketbase/pocketbase/tools/list"
-	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 var requiredErr = validation.NewError("validation_required", "Missing required value")
@@ -320,20 +322,6 @@ func (validator *RecordDataValidator) checkFileValue(field *schema.SchemaField, 
 	for _, file := range validator.uploadedFiles[field.Name] {
 		if list.ExistInSlice(file.Name, names) {
 			files = append(files, file)
-		}
-	}
-
-	for _, file := range files {
-		// check size
-		if err := UploadedFileSize(options.MaxSize)(file); err != nil {
-			return err
-		}
-
-		// check type
-		if len(options.MimeTypes) > 0 {
-			if err := UploadedFileMimeType(options.MimeTypes)(file); err != nil {
-				return err
-			}
 		}
 	}
 

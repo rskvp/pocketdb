@@ -3,9 +3,11 @@ package daos
 import (
 	"time"
 
+	"done/tools/types"
+
+	"done/services/datastorage/models"
+
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 // RequestQuery returns a new Request logs select query.

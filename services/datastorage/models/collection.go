@@ -3,10 +3,8 @@ package models
 import (
 	"encoding/json"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/go-ozzo/ozzo-validation/v4/is"
-	"github.com/pocketbase/pocketbase/models/schema"
-	"github.com/pocketbase/pocketbase/tools/types"
+	"done/services/datastorage/models/schema"
+	"done/tools/types"
 )
 
 var (
@@ -81,34 +79,10 @@ func (m *Collection) BaseOptions() CollectionBaseOptions {
 	return result
 }
 
-// AuthOptions decodes the current collection options and returns them
-// as new [CollectionAuthOptions] instance.
-func (m *Collection) AuthOptions() CollectionAuthOptions {
-	result := CollectionAuthOptions{}
-	m.DecodeOptions(&result)
-	return result
-}
-
-// ViewOptions decodes the current collection options and returns them
-// as new [CollectionViewOptions] instance.
-func (m *Collection) ViewOptions() CollectionViewOptions {
-	result := CollectionViewOptions{}
-	m.DecodeOptions(&result)
-	return result
-}
-
 // NormalizeOptions updates the current collection options with a
 // new normalized state based on the collection type.
 func (m *Collection) NormalizeOptions() error {
-	var typedOptions any
-	switch m.Type {
-	case CollectionTypeAuth:
-		typedOptions = m.AuthOptions()
-	case CollectionTypeView:
-		typedOptions = m.ViewOptions()
-	default:
-		typedOptions = m.BaseOptions()
-	}
+	var typedOptions = m.BaseOptions()
 
 	// serialize
 	raw, err := json.Marshal(typedOptions)
@@ -167,53 +141,4 @@ type CollectionBaseOptions struct {
 // Validate implements [validation.Validatable] interface.
 func (o CollectionBaseOptions) Validate() error {
 	return nil
-}
-
-// -------------------------------------------------------------------
-
-// CollectionAuthOptions defines the "auth" Collection.Options fields.
-type CollectionAuthOptions struct {
-	ManageRule         *string  `form:"manageRule" json:"manageRule"`
-	AllowOAuth2Auth    bool     `form:"allowOAuth2Auth" json:"allowOAuth2Auth"`
-	AllowUsernameAuth  bool     `form:"allowUsernameAuth" json:"allowUsernameAuth"`
-	AllowEmailAuth     bool     `form:"allowEmailAuth" json:"allowEmailAuth"`
-	RequireEmail       bool     `form:"requireEmail" json:"requireEmail"`
-	ExceptEmailDomains []string `form:"exceptEmailDomains" json:"exceptEmailDomains"`
-	OnlyEmailDomains   []string `form:"onlyEmailDomains" json:"onlyEmailDomains"`
-	MinPasswordLength  int      `form:"minPasswordLength" json:"minPasswordLength"`
-}
-
-// Validate implements [validation.Validatable] interface.
-func (o CollectionAuthOptions) Validate() error {
-	return validation.ValidateStruct(&o,
-		validation.Field(&o.ManageRule, validation.NilOrNotEmpty),
-		validation.Field(
-			&o.ExceptEmailDomains,
-			validation.When(len(o.OnlyEmailDomains) > 0, validation.Empty).Else(validation.Each(is.Domain)),
-		),
-		validation.Field(
-			&o.OnlyEmailDomains,
-			validation.When(len(o.ExceptEmailDomains) > 0, validation.Empty).Else(validation.Each(is.Domain)),
-		),
-		validation.Field(
-			&o.MinPasswordLength,
-			validation.When(o.AllowUsernameAuth || o.AllowEmailAuth, validation.Required),
-			validation.Min(5),
-			validation.Max(72),
-		),
-	)
-}
-
-// -------------------------------------------------------------------
-
-// CollectionViewOptions defines the "view" Collection.Options fields.
-type CollectionViewOptions struct {
-	Query string `form:"query" json:"query"`
-}
-
-// Validate implements [validation.Validatable] interface.
-func (o CollectionViewOptions) Validate() error {
-	return validation.ValidateStruct(&o,
-		validation.Field(&o.Query, validation.Required),
-	)
 }

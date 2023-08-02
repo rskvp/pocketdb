@@ -2,20 +2,16 @@ package apis
 
 import (
 	"fmt"
-	"log"
-	"net"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/labstack/echo/v5"
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/tokens"
-	"github.com/pocketbase/pocketbase/tools/list"
-	"github.com/pocketbase/pocketbase/tools/routine"
-	"github.com/pocketbase/pocketbase/tools/security"
-	"github.com/pocketbase/pocketbase/tools/types"
+	"done/services/datastorage/core"
+	"done/services/datastorage/models"
+	"done/services/datastorage/tokens"
+	"done/tools/list"
+	"done/tools/security"
+
+	"github.com/ganigeorgiev/echo"
 	"github.com/spf13/cast"
 )
 
@@ -173,41 +169,6 @@ func RequireAdminOrRecordAuth(optCollectionNames ...string) echo.MiddlewareFunc 
 	}
 }
 
-// RequireAdminOrOwnerAuth middleware requires a request to have
-// a valid admin or auth record owner Authorization header set.
-//
-// This middleware is similar to [apis.RequireAdminOrRecordAuth()] but
-// for the auth record token expects to have the same id as the path
-// parameter ownerIdParam (default to "id" if empty).
-func RequireAdminOrOwnerAuth(ownerIdParam string) echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			admin, _ := c.Get(ContextAdminKey).(*models.Admin)
-			if admin != nil {
-				return next(c)
-			}
-
-			record, _ := c.Get(ContextAuthRecordKey).(*models.Record)
-			if record == nil {
-				return NewUnauthorizedError("The request requires admin or record authorization token to be set.", nil)
-			}
-
-			if ownerIdParam == "" {
-				ownerIdParam = "id"
-			}
-			ownerId := c.PathParam(ownerIdParam)
-
-			// note: it is "safe" to compare only the record id since the auth
-			// record ids are treated as unique across all auth collections
-			if record.Id != ownerId {
-				return NewForbiddenError("You are not allowed to perform this request.", nil)
-			}
-
-			return next(c)
-		}
-	}
-}
-
 // LoadAuthContext middleware reads the Authorization request header
 // and loads the token related record or admin instance into the
 // request's context.
@@ -232,7 +193,7 @@ func LoadAuthContext(app core.App) echo.MiddlewareFunc {
 			case tokens.TypeAdmin:
 				admin, err := app.Dao().FindAdminByToken(
 					token,
-					app.Settings().AdminAuthToken.Secret,
+					"1",
 				)
 				if err == nil && admin != nil {
 					c.Set(ContextAdminKey, admin)
@@ -240,7 +201,7 @@ func LoadAuthContext(app core.App) echo.MiddlewareFunc {
 			case tokens.TypeAuthRecord:
 				record, err := app.Dao().FindAuthRecordByToken(
 					token,
-					app.Settings().RecordAuthToken.Secret,
+					"1",
 				)
 				if err == nil && record != nil {
 					c.Set(ContextAuthRecordKey, record)
@@ -248,117 +209,6 @@ func LoadAuthContext(app core.App) echo.MiddlewareFunc {
 			}
 
 			return next(c)
-		}
-	}
-}
-
-// LoadCollectionContext middleware finds the collection with related
-// path identifier and loads it into the request context.
-//
-// Set optCollectionTypes to further filter the found collection by its type.
-func LoadCollectionContext(app core.App, optCollectionTypes ...string) echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			if param := c.PathParam("collection"); param != "" {
-				collection, err := app.Dao().FindCollectionByNameOrId(param)
-				if err != nil || collection == nil {
-					return NewNotFoundError("", err)
-				}
-
-				if len(optCollectionTypes) > 0 && !list.ExistInSlice(collection.Type, optCollectionTypes) {
-					return NewBadRequestError("Unsupported collection type.", nil)
-				}
-
-				c.Set(ContextCollectionKey, collection)
-			}
-
-			return next(c)
-		}
-	}
-}
-
-// ActivityLogger middleware takes care to save the request information
-// into the logs database.
-//
-// The middleware does nothing if the app logs retention period is zero
-// (aka. app.Settings().Logs.MaxDays = 0).
-func ActivityLogger(app core.App) echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			err := next(c)
-
-			// no logs retention
-			if app.Settings().Logs.MaxDays == 0 {
-				return err
-			}
-
-			httpRequest := c.Request()
-			httpResponse := c.Response()
-			status := httpResponse.Status
-			meta := types.JsonMap{}
-
-			if err != nil {
-				switch v := err.(type) {
-				case *echo.HTTPError:
-					status = v.Code
-					meta["errorMessage"] = v.Message
-					meta["errorDetails"] = fmt.Sprint(v.Internal)
-				case *ApiError:
-					status = v.Code
-					meta["errorMessage"] = v.Message
-					meta["errorDetails"] = fmt.Sprint(v.RawData())
-				default:
-					status = http.StatusBadRequest
-					meta["errorMessage"] = v.Error()
-				}
-			}
-
-			requestAuth := models.RequestAuthGuest
-			if c.Get(ContextAuthRecordKey) != nil {
-				requestAuth = models.RequestAuthRecord
-			} else if c.Get(ContextAdminKey) != nil {
-				requestAuth = models.RequestAuthAdmin
-			}
-
-			ip, _, _ := net.SplitHostPort(httpRequest.RemoteAddr)
-
-			model := &models.Request{
-				Url:       httpRequest.URL.RequestURI(),
-				Method:    strings.ToUpper(httpRequest.Method),
-				Status:    status,
-				Auth:      requestAuth,
-				UserIp:    realUserIp(httpRequest, ip),
-				RemoteIp:  ip,
-				Referer:   httpRequest.Referer(),
-				UserAgent: httpRequest.UserAgent(),
-				Meta:      meta,
-			}
-			// set timestamp fields before firing a new go routine
-			model.RefreshCreated()
-			model.RefreshUpdated()
-
-			routine.FireAndForget(func() {
-				if err := app.LogsDao().SaveRequest(model); err != nil && app.IsDebug() {
-					log.Println("Log save failed:", err)
-				}
-
-				// Delete old request logs
-				// ---
-				now := time.Now()
-				lastLogsDeletedAt := cast.ToTime(app.Cache().Get("lastLogsDeletedAt"))
-				daysDiff := now.Sub(lastLogsDeletedAt).Hours() * 24
-
-				if daysDiff > float64(app.Settings().Logs.MaxDays) {
-					deleteErr := app.LogsDao().DeleteOldRequests(now.AddDate(0, 0, -1*app.Settings().Logs.MaxDays))
-					if deleteErr == nil {
-						app.Cache().Set("lastLogsDeletedAt", now)
-					} else if app.IsDebug() {
-						log.Println("Logs delete failed:", deleteErr)
-					}
-				}
-			})
-
-			return err
 		}
 	}
 }

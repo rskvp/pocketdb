@@ -7,15 +7,17 @@ import (
 	"fmt"
 	"strings"
 
+	"done/tools/inflector"
+	"done/tools/list"
+	"done/tools/search"
+	"done/tools/security"
+	"done/tools/types"
+
+	"done/services/datastorage/models"
+	"done/services/datastorage/models/schema"
+	"done/services/datastorage/resolvers"
+
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/models/schema"
-	"github.com/pocketbase/pocketbase/resolvers"
-	"github.com/pocketbase/pocketbase/tools/inflector"
-	"github.com/pocketbase/pocketbase/tools/list"
-	"github.com/pocketbase/pocketbase/tools/search"
-	"github.com/pocketbase/pocketbase/tools/security"
-	"github.com/pocketbase/pocketbase/tools/types"
 	"github.com/spf13/cast"
 )
 
@@ -618,15 +620,7 @@ func (dao *Dao) DeleteRecord(record *models.Record) error {
 		if record.Collection().IsAuth() {
 			// note: the select is outside of the transaction to minimize
 			// SQLITE_BUSY errors when mixing read&write in a single transaction
-			externalAuths, err := dao.FindAllExternalAuthsByRecord(record)
-			if err != nil {
-				return err
-			}
-			for _, auth := range externalAuths {
-				if err := txDao.DeleteExternalAuth(auth); err != nil {
-					return err
-				}
-			}
+
 		}
 
 		// delete the record before the relation references to ensure that there

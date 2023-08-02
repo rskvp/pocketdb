@@ -3,17 +3,14 @@ package core
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v5"
-	"github.com/pocketbase/pocketbase/daos"
-	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/models/schema"
-	"github.com/pocketbase/pocketbase/models/settings"
-	"github.com/pocketbase/pocketbase/tools/auth"
-	"github.com/pocketbase/pocketbase/tools/filesystem"
-	"github.com/pocketbase/pocketbase/tools/hook"
-	"github.com/pocketbase/pocketbase/tools/mailer"
-	"github.com/pocketbase/pocketbase/tools/search"
-	"github.com/pocketbase/pocketbase/tools/subscriptions"
+	"done/services/datastorage/daos"
+	"done/services/datastorage/models"
+	"done/services/datastorage/models/schema"
+	"done/tools/filesystem"
+	"done/tools/hook"
+	"done/tools/search"
+
+	"github.com/ganigeorgiev/echo"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -95,67 +92,6 @@ type ModelEvent struct {
 }
 
 // -------------------------------------------------------------------
-// Mailer events data
-// -------------------------------------------------------------------
-
-type MailerRecordEvent struct {
-	BaseCollectionEvent
-
-	MailClient mailer.Mailer
-	Message    *mailer.Message
-	Record     *models.Record
-	Meta       map[string]any
-}
-
-type MailerAdminEvent struct {
-	MailClient mailer.Mailer
-	Message    *mailer.Message
-	Admin      *models.Admin
-	Meta       map[string]any
-}
-
-// -------------------------------------------------------------------
-// Realtime API events data
-// -------------------------------------------------------------------
-
-type RealtimeConnectEvent struct {
-	HttpContext echo.Context
-	Client      subscriptions.Client
-}
-
-type RealtimeDisconnectEvent struct {
-	HttpContext echo.Context
-	Client      subscriptions.Client
-}
-
-type RealtimeMessageEvent struct {
-	HttpContext echo.Context
-	Client      subscriptions.Client
-	Message     *subscriptions.Message
-}
-
-type RealtimeSubscribeEvent struct {
-	HttpContext   echo.Context
-	Client        subscriptions.Client
-	Subscriptions []string
-}
-
-// -------------------------------------------------------------------
-// Settings API events data
-// -------------------------------------------------------------------
-
-type SettingsListEvent struct {
-	HttpContext      echo.Context
-	RedactedSettings *settings.Settings
-}
-
-type SettingsUpdateEvent struct {
-	HttpContext echo.Context
-	OldSettings *settings.Settings
-	NewSettings *settings.Settings
-}
-
-// -------------------------------------------------------------------
 // Record CRUD API events data
 // -------------------------------------------------------------------
 
@@ -195,104 +131,6 @@ type RecordDeleteEvent struct {
 
 	HttpContext echo.Context
 	Record      *models.Record
-}
-
-// -------------------------------------------------------------------
-// Auth Record API events data
-// -------------------------------------------------------------------
-
-type RecordAuthEvent struct {
-	BaseCollectionEvent
-
-	HttpContext echo.Context
-	Record      *models.Record
-	Token       string
-	Meta        any
-}
-
-type RecordAuthWithPasswordEvent struct {
-	BaseCollectionEvent
-
-	HttpContext echo.Context
-	Record      *models.Record
-	Identity    string
-	Password    string
-}
-
-type RecordAuthWithOAuth2Event struct {
-	BaseCollectionEvent
-
-	HttpContext    echo.Context
-	ProviderName   string
-	ProviderClient auth.Provider
-	Record         *models.Record
-	OAuth2User     *auth.AuthUser
-	IsNewRecord    bool
-}
-
-type RecordAuthRefreshEvent struct {
-	BaseCollectionEvent
-
-	HttpContext echo.Context
-	Record      *models.Record
-}
-
-type RecordRequestPasswordResetEvent struct {
-	BaseCollectionEvent
-
-	HttpContext echo.Context
-	Record      *models.Record
-}
-
-type RecordConfirmPasswordResetEvent struct {
-	BaseCollectionEvent
-
-	HttpContext echo.Context
-	Record      *models.Record
-}
-
-type RecordRequestVerificationEvent struct {
-	BaseCollectionEvent
-
-	HttpContext echo.Context
-	Record      *models.Record
-}
-
-type RecordConfirmVerificationEvent struct {
-	BaseCollectionEvent
-
-	HttpContext echo.Context
-	Record      *models.Record
-}
-
-type RecordRequestEmailChangeEvent struct {
-	BaseCollectionEvent
-
-	HttpContext echo.Context
-	Record      *models.Record
-}
-
-type RecordConfirmEmailChangeEvent struct {
-	BaseCollectionEvent
-
-	HttpContext echo.Context
-	Record      *models.Record
-}
-
-type RecordListExternalAuthsEvent struct {
-	BaseCollectionEvent
-
-	HttpContext   echo.Context
-	Record        *models.Record
-	ExternalAuths []*models.ExternalAuth
-}
-
-type RecordUnlinkExternalAuthEvent struct {
-	BaseCollectionEvent
-
-	HttpContext  echo.Context
-	Record       *models.Record
-	ExternalAuth *models.ExternalAuth
 }
 
 // -------------------------------------------------------------------
